@@ -37,8 +37,7 @@ plugin.provide_files(files)
 
 
 def app_info() -> dict:
-    current = app_from(plugin.settings, plugin.secrets)
-    return {"configured": current is not None, "own": bool(current and current.own)}
+    return {"configured": yadisk.app() is not None}
 
 
 def page_error(exc: Exception) -> HTTPException:

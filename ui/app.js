@@ -51,12 +51,12 @@ function render() {
     <div class="status">
       <span>${accounts.length ? `${accounts.length} ${plural(accounts.length, "аккаунт", "аккаунта", "аккаунтов")}` : "аккаунтов нет"}
         · ${mounts.length} ${plural(mounts.length, "подключение", "подключения", "подключений")}</span>
-      ${oauth.own ? `<span class="badge">своё приложение Яндекс OAuth</span>` : ""}
       <span class="grow"></span>
       <button class="btn" data-go="${esc(filesLink("@yadisk"))}">Открыть @yadisk в «Файлах»</button>
     </div>
-    ${!oauth.configured ? `<div class="pl-error">Не задано приложение Яндекс OAuth — войти нельзя. Укажите ClientID своего
-      приложения в <button class="btn-link" data-go="/settings/plugins/yadisk">настройках плагина</button>.</div>` : ""}
+    ${!oauth.configured ? `<div class="pl-error">Вход в аккаунты не настроен: нужны ClientID и Client secret приложения
+      Яндекс OAuth — их выдаёт администратор вашей установки Пульса. Укажите их в
+      <button class="btn-link" data-go="/settings/plugins/yadisk">настройках плагина</button>. Публичные ссылки работают и без этого.</div>` : ""}
     ${error ? `<div class="pl-error">${esc(error)}</div>` : ""}
     <div class="cols">
       <section class="box">

@@ -178,7 +178,7 @@ def fake(tmp_path, monkeypatch):
     fake = FakeYandex()
     http = httpx.Client(transport=httpx.MockTransport(fake.handler))
     signals = []
-    service = Yadisk(Store(tmp_path), http, lambda: App("test-app", "test-secret", True),
+    service = Yadisk(Store(tmp_path), http, lambda: App("test-app", "test-secret"),
                      on_expired=signals.append, sleep=lambda s: threading.Event().wait())   # фоновый опрос стоит; опрашивает тест
     monkeypatch.setattr(module, "yadisk", service)
     monkeypatch.setattr(module.files, "y", service)          # хранилище /fs/… — тот же сервис
@@ -204,10 +204,10 @@ def login(client, fake, uid="1001"):
 # --- вход и аккаунты ---------------------------------------------------------------------------------------
 
 def test_app_defaults_and_override():
-    default = app_from({}, {})                                   # без своего — приложение «Пульс» (если задано)
-    assert default is None or default.own is False
-    own = app_from({"client_id": " my "}, {"client_secret": "s"})
-    assert own.client_id == "my" and own.client_secret == "s" and own.own
+    assert app_from({}, {}) is None                              # значений по умолчанию нет
+    assert app_from({"client_id": "my"}, {}) is None              # без секрета — тоже не настроено
+    app = app_from({"client_id": " my "}, {"client_secret": "s"})
+    assert app.client_id == "my" and app.client_secret == "s"
 
 
 def test_login_adds_account_and_whole_disk_mount(client, fake):
@@ -228,7 +228,8 @@ def test_login_adds_account_and_whole_disk_mount(client, fake):
 def test_login_errors(client, fake, monkeypatch):
     monkeypatch.setattr(fake.service, "app", lambda: None)
     failed = client.post("/login")
-    assert failed.status_code == 400 and "client_id" in failed.json()["detail"]
+    assert failed.status_code == 400 and "ClientID" in failed.json()["detail"]
+    assert client.get("/state").json()["app"] == {"configured": False}
 
 
 def test_token_refresh_and_expired_signal(client, fake):

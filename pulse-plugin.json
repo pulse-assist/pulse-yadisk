@@ -37,14 +37,14 @@
   "settings": {
     "client_id": {
       "type": "string",
-      "title": "ClientID своего приложения Яндекс OAuth",
-      "description": "Пусто — вход через приложение «Пульс». Своё приложение: oauth.yandex.ru, права Яндекс Диска (см. README плагина)"
+      "title": "ClientID приложения Яндекс OAuth",
+      "description": "Нужен для входа в аккаунты; выдаёт администратор установки Пульса или ваше приложение на oauth.yandex.ru (см. README плагина)"
     },
     "client_secret": {
       "type": "string",
-      "title": "Client secret своего приложения",
+      "title": "Client secret приложения Яндекс OAuth",
       "secret": true,
-      "description": "Только вместе со своим ClientID"
+      "description": "Вместе с ClientID"
     }
   },
   "skills": [

@@ -2,9 +2,9 @@
 oauth.yandex.ru/device в своём браузере, плагин опрашивает /token и получает токены. Ни пароль, ни внешний адрес
 Пульса не нужны.
 
-Приложение Яндекс OAuth: по умолчанию — общее приложение «Пульс» (ниже); владелец может заменить его своим в
-настройках плагина (client_id, client_secret). У приложения должны быть права Яндекс Диска: cloud_api:disk.read,
-cloud_api:disk.write, cloud_api:disk.info.
+Приложение Яндекс OAuth задаётся только в настройках плагина (client_id, client_secret): значений по умолчанию в
+коде нет — их выдаёт администратор установки Пульса или владелец регистрирует своё приложение. У приложения должны
+быть права Яндекс Диска: cloud_api:disk.read, cloud_api:disk.write, cloud_api:disk.info.
 """
 
 import time
@@ -12,11 +12,6 @@ import time
 import httpx
 
 OAUTH = "https://oauth.yandex.ru"
-# приложение «Пульс» организации pulse-assist (oauth.yandex.ru). Пусто — пока не зарегистрировано: тогда нужен свой
-# client_id в настройках плагина. Секрет приложения для входа с устройства не защищает данные владельца: доступ
-# даёт только код, который владелец сам ввёл в своём аккаунте.
-DEFAULT_CLIENT_ID = ""
-DEFAULT_CLIENT_SECRET = ""
 
 
 class OAuthError(Exception):
@@ -28,19 +23,16 @@ class Pending(OAuthError):
 
 
 class App:
-    def __init__(self, client_id: str, client_secret: str, own: bool):
+    def __init__(self, client_id: str, client_secret: str):
         self.client_id = client_id
         self.client_secret = client_secret
-        self.own = own                      # своё приложение владельца, а не «Пульс»
 
 
 def app_from(settings: dict, secrets: dict) -> App | None:
+    """Приложение из настроек плагина; не задано — входить нельзя (None)."""
     client_id = (settings.get("client_id") or "").strip()
-    if client_id:
-        return App(client_id, (secrets.get("client_secret") or "").strip(), True)
-    if DEFAULT_CLIENT_ID:
-        return App(DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET, False)
-    return None
+    client_secret = (secrets.get("client_secret") or "").strip()
+    return App(client_id, client_secret) if client_id and client_secret else None
 
 
 def _error(response: httpx.Response) -> tuple[str, str]:

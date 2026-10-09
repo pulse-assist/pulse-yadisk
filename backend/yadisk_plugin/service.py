@@ -54,7 +54,8 @@ class Yadisk:
     def _oauth(self) -> YandexOAuth:
         app = self.app()
         if app is None:
-            raise UserError("Не задано приложение Яндекс OAuth: укажите client_id в настройках плагина «Яндекс Диск»")
+            raise UserError("Вход не настроен: укажите ClientID и Client secret приложения Яндекс OAuth в настройках "
+                            "плагина «Яндекс Диск» (их выдаёт администратор вашей установки Пульса)")
         return YandexOAuth(app, self.http)
 
     # --- вход ---------------------------------------------------------------------------------------------
