@@ -19,6 +19,7 @@ let openMenu = null;      // имя подключения с открытым �
 let renaming = null;      // имя подключения, которое переименовывают
 let confirm = null;       // {kind: "logout"|"unmount", id}
 let busy = "";            // что сейчас делается: запрос к Яндексу бывает долгим — показываем, а кнопки выключаем
+let copied = "";          // результат «Копировать»: copied — в буфере, selected — только выделено (Ctrl+C)
 
 async function load() {
   try {
@@ -131,8 +132,10 @@ function renderLogin() {
     return `<div class="login">
       <h3>Вход в ${data.accounts.length ? "ещё один " : ""}аккаунт Яндекса</h3>
       <p>Откройте страницу Яндекса, войдите в нужный аккаунт и введите код. Пароль вы вводите на сайте Яндекса — плагин его не видит.</p>
-      <div class="code-row"><span class="code" id="code">${esc(formatCode(login.user_code))}</span>
-        <button class="btn" data-copy="${esc(login.user_code)}">Копировать</button></div>
+      <div class="code-row"><span class="code" id="code">${esc(login.user_code)}</span>
+        <button class="btn" data-copy="${esc(login.user_code)}">${copied === "copied" ? "Скопировано ✓" : "Копировать"}</button>
+        ${copied === "selected" ? `<span class="hint">код выделен — нажмите Ctrl+C</span>` : ""}</div>
+      <div class="hint">Код вводится как есть, без пробелов.</div>
       <div class="code-row">
         <a class="btn btn-primary" style="display:inline-flex;align-items:center;text-decoration:none" href="${esc(login.verification_url)}" target="_blank" rel="noopener">Открыть ${esc(login.verification_url.replace(/^https?:\/\//, ""))} ↗</a>
         <span class="waiting">ждём подтверждения · код действует ещё ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}</span>
@@ -148,11 +151,6 @@ function renderLogin() {
   const failed = login && ["error", "expired"].includes(login.status) ? `<div class="error">${esc(login.error)}</div>` : "";
   return `<div class="login-start">${failed}${done}
     <button class="btn ${data.accounts.length ? "" : "btn-primary"}" data-login>+ Войти в аккаунт Яндекса</button></div>`;
-}
-
-function formatCode(code) {
-  const s = String(code || "");
-  return s.length > 4 ? `${s.slice(0, 4)} ${s.slice(4)}` : s;
 }
 
 function renderMount(m) {
@@ -214,14 +212,32 @@ app.addEventListener("submit", async (e) => {
 });
 
 async function copy(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    const range = document.createRange();      // во фрейме-песочнице буфер может быть закрыт — выделяем код
+  copied = await writeClipboard(text) ? "copied" : "selected";
+  render();
+  if (copied === "selected") {                  // буфер закрыт совсем — выделяем код, Ctrl+C сделает владелец
+    const range = document.createRange();
     range.selectNodeContents(document.getElementById("code"));
     getSelection().removeAllRanges();
     getSelection().addRange(range);
   }
+  setTimeout(() => { copied = ""; render(); }, 2500);
+}
+
+async function writeClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);   // нужен allow="clipboard-write" у фрейма (Пульс его даёт)
+    return true;
+  } catch { /* старый Пульс или браузер без доступа — пробуем по-старому */ }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.cssText = "position:fixed;top:-100px;opacity:0";
+  document.body.appendChild(area);
+  area.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch { ok = false; }
+  area.remove();
+  return ok;
 }
 
 // --- окно «Подключить папку» --------------------------------------------------------------------------------
