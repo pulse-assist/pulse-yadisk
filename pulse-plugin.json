@@ -1,0 +1,55 @@
+{
+  "id": "yadisk",
+  "name": "Яндекс Диск",
+  "version": "0.1.0",
+  "pulse": ">=1.3",
+  "description": "Яндекс Диск в «Файлах» и у агентов: несколько аккаунтов, общие папки и публичные ссылки папкой @yadisk",
+  "permissions": [
+    "files:provide",
+    "signals:create",
+    "network"
+  ],
+  "runtime": {
+    "kind": "python",
+    "entry": "yadisk_plugin.app:app",
+    "path": "backend",
+    "requirements": "backend/requirements.txt",
+    "health": "/health"
+  },
+  "files": {
+    "provider": {
+      "title": "Яндекс Диск",
+      "icon": "bi-cloud",
+      "description": "Подключения плагина «Яндекс Диск»: диски аккаунтов, общие папки, публичные ссылки"
+    }
+  },
+  "ui": {
+    "dist": "ui"
+  },
+  "menu": [
+    {
+      "id": "main",
+      "title": "Яндекс Диск",
+      "icon": "bi-cloud",
+      "page": "index.html"
+    }
+  ],
+  "settings": {
+    "client_id": {
+      "type": "string",
+      "title": "ClientID своего приложения Яндекс OAuth",
+      "description": "Пусто — вход через приложение «Пульс». Своё приложение: oauth.yandex.ru, права Яндекс Диска (см. README плагина)"
+    },
+    "client_secret": {
+      "type": "string",
+      "title": "Client secret своего приложения",
+      "secret": true,
+      "description": "Только вместе со своим ClientID"
+    }
+  },
+  "skills": [
+    "skills/yadisk.md"
+  ],
+  "commands": "commands.json",
+  "install": "INSTALL.md"
+}

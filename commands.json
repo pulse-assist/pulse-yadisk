@@ -1,0 +1,132 @@
+[
+  {
+    "name": "accounts",
+    "description": "Аккаунты Яндекса: логин, имя, место на диске, не истёк ли вход",
+    "args": []
+  },
+  {
+    "name": "login",
+    "description": "Начать вход в ещё один аккаунт: код и ссылка — передай их владельцу (вводит он сам)",
+    "args": []
+  },
+  {
+    "name": "login status",
+    "description": "Чем закончился вход: pending — ждём владельца, done, error, expired",
+    "args": []
+  },
+  {
+    "name": "logout",
+    "description": "Выйти из аккаунта и убрать его подключения (файлы на Диске не трогаются)",
+    "args": [
+      {
+        "name": "account",
+        "description": "аккаунт: логин или имя (один аккаунт — можно не указывать)"
+      }
+    ]
+  },
+  {
+    "name": "mounts",
+    "description": "Подключения: папки в @yadisk, откуда они, только ли чтение",
+    "args": []
+  },
+  {
+    "name": "browse",
+    "description": "Папки аккаунта, в том числе принятые общие, — чтобы выбрать, что подключить",
+    "args": [
+      {
+        "name": "account",
+        "description": "аккаунт: логин или имя (один аккаунт — можно не указывать)"
+      },
+      {
+        "name": "path",
+        "description": "папка на диске, по умолчанию корень /"
+      }
+    ]
+  },
+  {
+    "name": "mount folder",
+    "description": "Подключить весь диск или папку аккаунта (общие папки — тоже) как @yadisk/<имя>",
+    "args": [
+      {
+        "name": "account",
+        "description": "аккаунт: логин или имя (один аккаунт — можно не указывать)"
+      },
+      {
+        "name": "path",
+        "description": "папка на диске, например «/Проект Альфа»; по умолчанию весь диск"
+      },
+      {
+        "name": "name",
+        "description": "имя папки в @yadisk; по умолчанию — имя папки или аккаунта"
+      }
+    ]
+  },
+  {
+    "name": "mount public",
+    "description": "Подключить публичную ссылку Яндекс Диска (только чтение, без входа)",
+    "args": [
+      {
+        "name": "url",
+        "description": "https://disk.yandex.ru/d/…",
+        "required": true
+      },
+      {
+        "name": "name",
+        "description": "имя папки в @yadisk; по умолчанию — имя из ссылки"
+      }
+    ]
+  },
+  {
+    "name": "rename",
+    "description": "Переименовать подключение",
+    "args": [
+      {
+        "name": "name",
+        "description": "текущее имя",
+        "required": true
+      },
+      {
+        "name": "to",
+        "description": "новое имя",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "unmount",
+    "description": "Отключить подключение (файлы на Диске не трогаются)",
+    "args": [
+      {
+        "name": "name",
+        "description": "имя подключения",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "save",
+    "description": "Сохранить публичную ссылку к себе на диск — в «Загрузки» аккаунта",
+    "args": [
+      {
+        "name": "name",
+        "description": "имя подключения-ссылки",
+        "required": true
+      },
+      {
+        "name": "account",
+        "description": "аккаунт: логин или имя (один аккаунт — можно не указывать)"
+      }
+    ]
+  },
+  {
+    "name": "publish",
+    "description": "Открыть доступ по ссылке к файлу или папке и вернуть публичную ссылку",
+    "args": [
+      {
+        "name": "path",
+        "description": "путь в @yadisk: @yadisk/<подключение>/…",
+        "required": true
+      }
+    ]
+  }
+]
