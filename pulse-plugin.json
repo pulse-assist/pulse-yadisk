@@ -1,8 +1,8 @@
 {
   "id": "yadisk",
   "name": "Яндекс Диск",
-  "version": "0.1.0",
-  "pulse": ">=1.3",
+  "version": "0.2.0",
+  "pulse": ">=1.4",
   "description": "Яндекс Диск в «Файлах» и у агентов: несколько аккаунтов, общие папки и публичные ссылки папкой @yadisk",
   "permissions": [
     "files:provide",
@@ -45,11 +45,24 @@
       "title": "Client secret приложения Яндекс OAuth",
       "secret": true,
       "description": "Вместе с ClientID"
+    },
+    "proxy": {
+      "type": "string",
+      "title": "Прокси в РФ для запросов к Яндексу",
+      "secret": true,
+      "description": "Если сервер Пульса не в России и вход не отвечает: http://логин:пароль@хост:порт или socks5://хост:порт"
+    },
+    "proxy_all": {
+      "type": "boolean",
+      "title": "Все запросы к Яндексу через прокси",
+      "default": false,
+      "description": "Выключено — через прокси идёт только вход (oauth.yandex.ru), файлы — напрямую"
     }
   },
   "skills": [
     "skills/yadisk.md"
   ],
   "commands": "commands.json",
+  "check": "check",
   "install": "INSTALL.md"
 }

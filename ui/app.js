@@ -18,6 +18,7 @@ let poll = null;
 let openMenu = null;      // имя подключения с открытым меню «⋯»
 let renaming = null;      // имя подключения, которое переименовывают
 let confirm = null;       // {kind: "logout"|"unmount", id}
+let busy = "";            // что сейчас делается: запрос к Яндексу бывает долгим — показываем, а кнопки выключаем
 
 async function load() {
   try {
@@ -28,11 +29,26 @@ async function load() {
     error = e.message;
   }
   render();
-  clearTimeout(poll);
-  if (data.login?.status === "pending") poll = setTimeout(load, 3000);
+  watchLogin();
 }
 
-async function act(fn) {
+// пока владелец вводит код — опрашиваем только состояние входа (лёгкий запрос), всю страницу — когда вход закончится
+function watchLogin() {
+  clearTimeout(poll);
+  if (data.login?.status !== "pending") return;
+  poll = setTimeout(async () => {
+    try {
+      const login = await pulse.plugin("/login");
+      if (login?.status === "pending") { data.login = login; render(); watchLogin(); return; }
+    } catch { /* сеть моргнула — перечитаем всё */ }
+    await load();
+  }, 3000);
+}
+
+async function act(fn, label) {
+  busy = label || "Выполняю…";
+  openMenu = null;
+  render();
   try {
     await fn();
     error = "";
@@ -41,13 +57,17 @@ async function act(fn) {
   }
   openMenu = renaming = confirm = null;
   await load();
+  busy = "";
+  render();
 }
 
 // --- отрисовка ----------------------------------------------------------------------------------------------
 
 function render() {
   const { accounts, mounts, app: oauth } = data;
+  app.classList.toggle("busy", !!busy);
   app.innerHTML = `
+    ${busy ? `<div class="working" role="status"><span class="spinner"></span>${esc(busy)}</div>` : ""}
     <div class="status">
       <span>${accounts.length ? `${accounts.length} ${plural(accounts.length, "аккаунт", "аккаунта", "аккаунтов")}` : "аккаунтов нет"}
         · ${mounts.length} ${plural(mounts.length, "подключение", "подключения", "подключений")}</span>
@@ -120,6 +140,10 @@ function renderLogin() {
       </div>
     </div>`;
   }
+  if (busy.startsWith("Запрашиваю код")) {
+    return `<div class="login"><h3>Вход в аккаунт Яндекса</h3>
+      <div class="working"><span class="spinner"></span>Запрашиваю код у Яндекса… обычно пара секунд, иногда дольше</div></div>`;
+  }
   const done = login?.status === "done" ? `<div class="hint">Вход выполнен: ${esc(login.account)}.</div>` : "";
   const failed = login && ["error", "expired"].includes(login.status) ? `<div class="error">${esc(login.error)}</div>` : "";
   return `<div class="login-start">${failed}${done}
@@ -164,16 +188,18 @@ app.addEventListener("click", async (e) => {
   if (!t) { if (openMenu) { openMenu = null; render(); } return; }
   const d = t.dataset;
   if (d.go) pulse.navigate(d.go);
-  else if (d.login !== undefined) await act(() => pulse.plugin("/login", { method: "POST" }));
-  else if (d.loginCancel !== undefined) await act(() => pulse.plugin("/login", { method: "DELETE" }));
+  else if (busy) return;                                   // уже идёт запрос — второй не запускаем
+  else if (d.login !== undefined) await act(() => pulse.plugin("/login", { method: "POST" }), "Запрашиваю код у Яндекса…");
+  else if (d.loginCancel !== undefined) await act(() => pulse.plugin("/login", { method: "DELETE" }), "Отменяю вход…");
   else if (d.copy) copy(d.copy);
   else if (d.logout) { confirm = { kind: "logout", id: d.logout }; render(); }
-  else if (d.logoutYes) await act(() => pulse.plugin(`/accounts/${encodeURIComponent(d.logoutYes)}`, { method: "DELETE" }));
+  else if (d.logoutYes) await act(() => pulse.plugin(`/accounts/${encodeURIComponent(d.logoutYes)}`, { method: "DELETE" }), "Выхожу из аккаунта…");
   else if (d.unmount) { confirm = { kind: "unmount", id: d.unmount }; openMenu = null; render(); }
-  else if (d.unmountYes) await act(() => pulse.plugin(`/mounts/${encodeURIComponent(d.unmountYes)}`, { method: "DELETE" }));
+  else if (d.unmountYes) await act(() => pulse.plugin(`/mounts/${encodeURIComponent(d.unmountYes)}`, { method: "DELETE" }), "Отключаю…");
   else if (d.menu) { openMenu = openMenu === d.menu ? null : d.menu; render(); }
   else if (d.rename) { renaming = d.rename; openMenu = null; render(); app.querySelector("[data-rename-form] input")?.select(); }
-  else if (d.save) await act(() => pulse.plugin(`/mounts/${encodeURIComponent(d.save)}/save`, { method: "POST", body: {} }));
+  else if (d.save) await act(() => pulse.plugin(`/mounts/${encodeURIComponent(d.save)}/save`, { method: "POST", body: {} }),
+                             "Сохраняю ссылку к себе на диск — для больших папок это может занять минуту…");
   else if (d.cancel !== undefined) { confirm = renaming = null; render(); }
   else if (d.add) openDialog(d.add);
 });
@@ -183,7 +209,8 @@ app.addEventListener("submit", async (e) => {
   if (!form) return;
   e.preventDefault();
   const to = form.elements.to.value.trim();
-  await act(() => pulse.plugin(`/mounts/${encodeURIComponent(form.dataset.renameForm)}`, { method: "PATCH", body: { name: to } }));
+  await act(() => pulse.plugin(`/mounts/${encodeURIComponent(form.dataset.renameForm)}`, { method: "PATCH", body: { name: to } }),
+            "Переименовываю…");
 });
 
 async function copy(text) {
@@ -230,11 +257,14 @@ async function checkUrl() {
   form.preview = null;
   form.error = "";
   if (!form.url.trim()) { renderDialog(); return; }
+  form.checking = true;
+  renderDialog();
   try {
     form.preview = await pulse.plugin("/public", { params: { url: form.url.trim() } });
   } catch (e) {
     form.error = e.message;
   }
+  form.checking = false;
   renderDialog();
 }
 
@@ -258,6 +288,7 @@ function renderDialog() {
           вам открыли, видны здесь после того, как вы приняли приглашение в Яндекс Диске.</span></div>`
     : `
       <label class="field">Ссылка на Яндекс Диск<input id="f-url" value="${esc(form.url)}" placeholder="https://disk.yandex.ru/d/…" autocomplete="off"></label>
+      ${form.checking ? `<div class="working"><span class="spinner"></span>Проверяю ссылку…</div>` : ""}
       ${form.preview ? `<div class="preview"><b>${esc(form.preview.name)}</b><span class="hint">${form.preview.type === "dir"
         ? `папка${form.preview.items != null ? ` · ${form.preview.items} в корне` : ""}` : `файл · ${gb(form.preview.size)}`}</span></div>` : ""}
       <span class="hint">Публичная ссылка — только чтение и без входа в аккаунт. Чтобы править файлы, сохраните её к себе
@@ -270,6 +301,7 @@ function renderDialog() {
       <label class="field">Имя папки в «Файлах»<input id="f-name" value="${esc(form.name)}" placeholder="${esc(defaultName)}" autocomplete="off">
         <span class="hint mono">@yadisk/${esc(form.name || defaultName)}</span></label>
       ${form.error ? `<div class="error">${esc(form.error)}</div>` : ""}
+      ${form.busy ? `<div class="working"><span class="spinner"></span>Подключаю…</div>` : ""}
     </div>
     <div class="modal-foot"><button class="btn" data-close>Отмена</button>
       <button class="btn btn-primary" data-submit ${form.busy || (form.tab === "public" && !form.preview) ? "disabled" : ""}>Подключить</button></div>

@@ -79,7 +79,8 @@ class Yadisk:
         except OAuthError as exc:
             raise UserError(str(exc)) from None
         except httpx.HTTPError as exc:
-            raise UserError(f"Яндекс не ответил: {exc.__class__.__name__}") from None
+            raise UserError(f"oauth.yandex.ru не ответил ({exc.__class__.__name__}). Если сервер Пульса не в России, "
+                            "задайте прокси в РФ в настройках плагина и нажмите «Проверить подключение»") from None
         login = {**code, "status": "pending", "error": None, "account": None, "id": uuid.uuid4().hex}
         self.store.change(lambda data: data.__setitem__("login", login))
         if background:

@@ -7,18 +7,20 @@ POST /mounts, PATCH|DELETE /mounts/{name}, POST /mounts/{name}/save.
 save|publish. Хранилище для ядра — /fs/… (pulse_plugin.fs).
 """
 
-import httpx
 from fastapi import Body, HTTPException, Query
 from pulse_plugin import CommandError, Plugin
 from pulse_plugin.fs import FsError
 
-from .oauth import app_from
+from . import net
+from .disk import API, AuthExpired
+from .oauth import OAUTH, app_from
 from .service import UserError, Yadisk, YadiskFiles, join
 from .store import Store
 
 plugin = Plugin()
 app = plugin.app
-http = httpx.Client(timeout=httpx.Timeout(60, connect=10), headers={"User-Agent": "Pulse-yadisk"})
+# прокси в РФ (настройки proxy и proxy_all) — если сервер Пульса не в России и oauth.yandex.ru не отвечает
+http = net.build_http(plugin.settings, plugin.secrets)
 
 
 def expired_signal(account: dict) -> None:
@@ -61,6 +63,12 @@ def run(fn, *args, **kwargs):
 def state() -> dict:
     return {"app": app_info(), "accounts": yadisk.accounts(space=True), "mounts": yadisk.mounts(),
             "login": yadisk.login_state()}
+
+
+@app.get("/login")
+def login_status() -> dict | None:
+    """Только состояние входа — страница опрашивает его, пока владелец вводит код (без запросов к Диску)."""
+    return yadisk.login_state()
 
 
 @app.post("/login")
@@ -189,6 +197,57 @@ def save_command(args: dict) -> dict:
     if not args.get("name"):
         raise CommandError("нужен --name подключения-ссылки")
     return command(yadisk.save_public, args["name"], args.get("account") or "")
+
+
+def connection_check() -> dict:
+    """По шагам: приложение OAuth, прокси, сеть до входа и до Диска, аккаунты. Кнопка «Проверить подключение»."""
+    checks = []
+
+    def add(title: str, ok: bool, detail: str | None = None) -> None:
+        checks.append({"title": title, "ok": ok, "detail": detail})
+
+    configured = yadisk.app() is not None
+    add("Приложение Яндекс OAuth", configured,
+        "ClientID и Client secret заданы" if configured else "не заданы ClientID и Client secret — без них работают только публичные ссылки")
+    try:
+        proxy = net.proxy_of(plugin.settings, plugin.secrets)
+        if proxy and proxy.startswith("socks"):
+            import socksio  # noqa: F401 — httpx нужен пакет socksio для socks5
+        if proxy:
+            add("Прокси", True, f"{net.proxy_label(proxy)} — " + ("все запросы к Яндексу" if plugin.setting("proxy_all")
+                                                                 else "только вход (oauth.yandex.ru)"))
+    except net.ProxyError as exc:
+        add("Прокси", False, str(exc))
+    except ImportError:
+        add("Прокси", False, "для socks5 нужен пакет socksio — переустановите плагин или используйте http-прокси")
+    hint = "" if plugin.secret("proxy") else " Если сервер Пульса не в России, задайте прокси в РФ в настройках плагина."
+    ok, detail = net.reach(yadisk.http, f"{OAUTH}/")
+    add("Вход: oauth.yandex.ru", ok, detail + ("" if ok else "." + hint))
+    ok, detail = net.reach(yadisk.http, f"{API}/")
+    add("Диск: cloud-api.yandex.net", ok, detail + ("" if ok else ". Включите «Все запросы к Яндексу через прокси»."
+                                                   if plugin.secret("proxy") else "." + hint))
+    for account in yadisk.accounts():
+        if account["expired"]:
+            add(f"Аккаунт {account['login']}", False, "вход истёк — войдите снова на странице плагина")
+            continue
+        try:
+            yadisk.disk(account["uid"]).info()
+            add(f"Аккаунт {account['login']}", True, "вход действует, Диск отвечает")
+        except AuthExpired as exc:
+            add(f"Аккаунт {account['login']}", False, str(exc))
+        except FsError as exc:
+            add(f"Аккаунт {account['login']}", False, str(exc))
+    return {"ok": all(c["ok"] for c in checks), "checks": checks}
+
+
+@app.get("/check")
+def check_page() -> dict:
+    return connection_check()
+
+
+@plugin.command("check", "Проверить подключение: приложение OAuth, прокси, доступ ко входу и к Диску, аккаунты")
+def check_command(args: dict) -> dict:
+    return connection_check()
 
 
 @plugin.command("publish", "Публичная ссылка на файл или папку из @yadisk")

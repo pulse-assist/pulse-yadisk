@@ -42,6 +42,7 @@ class FakeYandex:
         }
         self.public = {"/": None, "/фото1.jpg": b"jpeg-1", "/Вечер": None, "/Вечер/фото2.jpg": b"jpeg-2"}
         self.ranges = []
+        self.oauth_down = False
 
     # --- помощники -----------------------------------------------------------------------------------------
     @staticmethod
@@ -85,6 +86,10 @@ class FakeYandex:
         url = urlsplit(str(request.url))
         q = parse_qs(url.query)
         if url.netloc == "oauth.yandex.ru":
+            if self.oauth_down:
+                raise httpx.ReadTimeout("TLS handshake hangs", request=request)
+            if request.method == "GET":
+                return httpx.Response(200, text="oauth")
             form = parse_qs(request.content.decode())
             if url.path == "/device/code":
                 assert form["client_id"] == ["test-app"] and form["device_id"][0]
@@ -326,6 +331,38 @@ def test_public_link_is_read_only_and_can_be_saved(client, fake):
     assert saved["folder"] == "Загрузки" and "/Загрузки" in fake.disks["1001"]
     assert client.delete("/mounts/Фото с конференции").status_code == 200
     assert [m["name"] for m in client.get("/state").json()["mounts"]] == ["Иван Петров"]
+
+
+# --- прокси и проверка подключения ------------------------------------------------------------------------------
+
+def test_proxy_only_for_login_or_for_everything():
+    from yadisk_plugin import net
+
+    direct = net.build_http({}, {})
+    assert direct._transport_for_url(httpx.URL("https://oauth.yandex.ru/token")) is direct._transport
+    login_only = net.build_http({}, {"proxy": "http://user:pw@ru-proxy.example:3128"})
+    assert login_only._transport_for_url(httpx.URL("https://oauth.yandex.ru/token")) is not login_only._transport
+    assert login_only._transport_for_url(httpx.URL("https://cloud-api.yandex.net/v1/disk/")) is login_only._transport
+    everything = net.build_http({"proxy_all": True}, {"proxy": "http://ru-proxy.example:3128"})
+    assert everything._transport_for_url(httpx.URL("https://cloud-api.yandex.net/v1/disk/")) is not None
+    assert net.proxy_label("http://user:pw@ru-proxy.example:3128") == "http://ru-proxy.example:3128"   # без пароля
+    with pytest.raises(net.ProxyError):
+        net.proxy_of({}, {"proxy": "ru-proxy.example"})
+
+
+def test_connection_check(client, fake, monkeypatch):
+    login(client, fake)
+    result = client.post("/commands/check", json={}).json()
+    titles = {c["title"]: c for c in result["checks"]}
+    assert result["ok"] is True and titles["Вход: oauth.yandex.ru"]["ok"] and titles["Аккаунт ivan.petrov"]["ok"]
+    assert titles["Диск: cloud-api.yandex.net"]["detail"] == "отвечает (HTTP 401)"
+
+    fake.oauth_down = True                              # сервер вне России: вход не отвечает
+    down = client.get("/check").json()
+    failed = next(c for c in down["checks"] if c["title"] == "Вход: oauth.yandex.ru")
+    assert down["ok"] is False and "блокировку" in failed["detail"] and "прокси в РФ" in failed["detail"]
+    started = client.post("/login")
+    assert started.status_code == 400 and "прокси" in started.json()["detail"]
 
 
 # --- команды агентов -----------------------------------------------------------------------------------------

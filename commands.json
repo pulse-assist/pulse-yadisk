@@ -10,6 +10,11 @@
     "args": []
   },
   {
+    "name": "check",
+    "description": "Проверить подключение по шагам: приложение OAuth, прокси, доступ к oauth.yandex.ru и к Диску, аккаунты",
+    "args": []
+  },
+  {
     "name": "login status",
     "description": "Чем закончился вход: pending — ждём владельца, done, error, expired",
     "args": []
